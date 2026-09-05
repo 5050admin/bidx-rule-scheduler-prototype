@@ -1,0 +1,2075 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rule-Based Ad Scheduler Prototype</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --panel: #ffffff;
+      --panel-soft: #f9fafc;
+      --text: #142033;
+      --muted: #667085;
+      --line: #d9dee8;
+      --line-strong: #bdc6d6;
+      --primary: #285be7;
+      --primary-soft: #eef3ff;
+      --primary-strong: #143bb3;
+      --success: #18845b;
+      --success-soft: #e9f7f1;
+      --warning: #a76803;
+      --warning-soft: #fff5dc;
+      --danger: #bd3030;
+      --danger-soft: #fff0f0;
+      --neutral-chip: #eef1f5;
+      --shadow: 0 16px 40px rgba(20, 32, 51, .08);
+      --radius: 16px;
+      --radius-sm: 10px;
+      --slot-h: 68px;
+      --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background:
+        radial-gradient(circle at top left, rgba(40,91,231,.10), transparent 34rem),
+        linear-gradient(180deg, #fbfcff 0%, var(--bg) 42%);
+      color: var(--text);
+    }
+
+    button, input, select, textarea { font: inherit; }
+
+    .app {
+      max-width: 1480px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .compact-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-end;
+      margin-bottom: 16px;
+    }
+
+    .compact-header h1 {
+      font-size: clamp(24px, 3vw, 34px);
+      line-height: 1.08;
+      letter-spacing: -.03em;
+      margin: 0 0 6px;
+    }
+
+    .compact-header p {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+      max-width: 780px;
+      margin: 0;
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid var(--line-strong);
+      background: white;
+      color: #243047;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn:hover { transform: translateY(-1px); border-color: var(--primary); }
+    .btn.primary { background: var(--primary); border-color: var(--primary); color: white; }
+    .btn.primary:hover { background: var(--primary-strong); }
+    .btn.ghost { background: transparent; }
+    .btn.danger { color: var(--danger); border-color: rgba(189,48,48,.35); background: var(--danger-soft); }
+    .btn.success { color: var(--success); border-color: rgba(24,132,91,.35); background: var(--success-soft); }
+    .btn.small { padding: 7px 10px; border-radius: 10px; font-size: 12px; }
+    .btn.active { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .btn:disabled:hover { border-color: var(--line-strong); transform: none; }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .panel-header h2 {
+      font-size: 16px;
+      margin: 0;
+      letter-spacing: -.01em;
+    }
+
+    .panel-header p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .panel-body { padding: 16px 18px 18px; }
+
+    .suggestions { margin-bottom: 18px; }
+
+    .suggestion-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .suggestion-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel-soft);
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .suggestion-card h3 {
+      margin: 0;
+      font-size: 14px;
+      letter-spacing: -.01em;
+    }
+
+    .suggestion-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .suggestion-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .empty-state {
+      border: 1px dashed var(--line-strong);
+      border-radius: 14px;
+      padding: 16px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      grid-column: 1 / -1;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 360px minmax(640px, 1fr) 320px;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .rule-list { display: grid; gap: 12px; }
+
+    .priority-note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      margin: 0 0 12px;
+    }
+
+    .rule-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel-soft);
+      padding: 13px;
+      cursor: pointer;
+    }
+
+    .rule-card:hover { border-color: var(--primary); }
+    .rule-card.selected { border-color: var(--primary); background: var(--primary-soft); }
+    .rule-card.dragging { opacity: .45; border-style: dashed; }
+    .rule-card.drag-over { border-color: var(--primary); box-shadow: inset 0 0 0 2px rgba(40,91,231,.16); }
+
+    .rule-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .rule-heading {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .drag-handle {
+      border: 1px solid var(--line-strong);
+      background: white;
+      border-radius: 9px;
+      color: var(--muted);
+      font-weight: 900;
+      line-height: 1;
+      padding: 5px 7px;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .drag-handle:active { cursor: grabbing; }
+
+    .rule-title {
+      font-weight: 850;
+      font-size: 14px;
+      letter-spacing: -.01em;
+      margin: 0;
+    }
+
+    .rule-meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      margin: 0 0 10px;
+    }
+
+    .rule-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 8px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .pill.info { background: var(--primary-soft); color: var(--primary); }
+    .pill.neutral { background: var(--neutral-chip); color: #344054; }
+    .pill.warn { background: var(--warning-soft); color: var(--warning); }
+
+    .metric-strip {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      background: var(--panel-soft);
+    }
+
+    .metric .name { font-size: 12px; color: var(--muted); margin-bottom: 7px; }
+    .metric .value { font-size: 20px; font-weight: 900; letter-spacing: -.03em; }
+    .metric .note { margin-top: 5px; font-size: 12px; color: var(--muted); }
+
+    .grid-controls {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .swatch { width: 16px; height: 10px; border-radius: 4px; border: 1px solid rgba(0,0,0,.08); }
+    .swatch.change { background: var(--primary-soft); border-color: rgba(40,91,231,.35); }
+    .swatch.overlap { background: var(--danger-soft); border-color: rgba(189,48,48,.35); }
+
+    .grid-scroll {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      max-height: 720px;
+      background: var(--line);
+    }
+
+    .schedule-grid {
+      min-width: 860px;
+      display: grid;
+      grid-template-columns: 88px repeat(7, minmax(110px, 1fr));
+      background: var(--line);
+      gap: 1px;
+    }
+
+    .cell, .day-head, .time-head {
+      background: white;
+      min-height: var(--slot-h);
+      padding: 9px;
+    }
+
+    .corner, .day-head {
+      min-height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    .corner {
+      background: #f2f5fb;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+    }
+
+    .day-head {
+      background: #f2f5fb;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 2px;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .day-head span { color: var(--muted); font-size: 11px; font-weight: 600; }
+
+    .time-head {
+      background: #f8f9fc;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 850;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      flex-direction: column;
+      gap: 4px;
+      position: sticky;
+      left: 0;
+      z-index: 1;
+    }
+
+    .time-head span { color: var(--muted); font-weight: 600; }
+
+    .cell {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+      border: 2px solid transparent;
+    }
+
+    .cell.changed {
+      background: #f8fbff;
+      border-color: rgba(40,91,231,.45);
+      box-shadow: inset 0 0 0 1px rgba(40,91,231,.08);
+    }
+
+    .cell.conflict {
+      border-color: rgba(189,48,48,.55);
+      background-image: repeating-linear-gradient(135deg, rgba(189,48,48,.08) 0 7px, transparent 7px 14px);
+    }
+
+    .blank-cell { min-height: 26px; }
+
+    .change-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      align-items: flex-start;
+    }
+
+    .change-pill {
+      display: inline-flex;
+      border-radius: 999px;
+      padding: 4px 6px;
+      font-size: 10px;
+      font-weight: 900;
+      background: rgba(255,255,255,.85);
+      border: 1px solid rgba(52,64,84,.18);
+      color: #243047;
+    }
+
+    .change-pill.up { background: #e8f7ef; color: #13734f; border-color: rgba(19,115,79,.20); }
+    .change-pill.down { background: #fff1e4; color: #995106; border-color: rgba(153,81,6,.20); }
+    .change-pill.pause { background: var(--danger-soft); color: var(--danger); border-color: rgba(189,48,48,.24); }
+    .change-pill.conflictmark { background: var(--danger); color: white; border-color: var(--danger); }
+    .change-pill.prioritymark { background: var(--primary); color: white; border-color: var(--primary); }
+    .spend-delta { font-size: 11px; color: #344054; font-weight: 800; }
+    .spend-delta.positive { color: var(--success); }
+    .spend-delta.negative { color: #995106; }
+
+    .side-list { display: grid; gap: 12px; }
+
+    .insight-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      background: var(--panel-soft);
+    }
+
+    .insight-card h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      letter-spacing: -.01em;
+    }
+
+    .insight-card p, .insight-card li {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    .impact-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+
+    .impact-line:last-child { border-bottom: 0; }
+    .impact-line span { color: var(--muted); }
+    .impact-line strong { text-align: right; }
+
+    .warning-list { display: grid; gap: 8px; }
+    .warning-row {
+      display: grid;
+      gap: 8px;
+      padding: 9px;
+      border-radius: 10px;
+      background: var(--warning-soft);
+      color: #6f4700;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .warning-row.dangerish { background: var(--danger-soft); color: var(--danger); }
+    .warning-row.ok { background: var(--success-soft); color: var(--success); }
+    .warning-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+
+    .footer-note {
+      margin-top: 18px;
+      background: #111827;
+      color: #e5e7eb;
+      border-radius: var(--radius);
+      padding: 18px;
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .footer-note h2 { margin: 0 0 8px; font-size: 16px; }
+    .footer-note p, .footer-note li { color: #cbd5e1; font-size: 13px; line-height: 1.5; margin: 0; }
+    .footer-note ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; }
+
+    .drawer-backdrop, .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,.45);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s ease;
+      z-index: 20;
+    }
+
+    .drawer-backdrop.open, .modal-backdrop.open { opacity: 1; pointer-events: auto; }
+
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: min(600px, 100vw);
+      height: 100vh;
+      background: var(--panel);
+      box-shadow: -20px 0 50px rgba(20,32,51,.18);
+      transform: translateX(102%);
+      transition: transform .22s ease;
+      z-index: 21;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .drawer.open { transform: translateX(0); }
+
+    .drawer-head {
+      padding: 20px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .drawer-head h2 { margin: 0 0 5px; font-size: 20px; }
+    .drawer-head p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+
+    .drawer-body {
+      padding: 18px 20px;
+      overflow: auto;
+      display: grid;
+      gap: 18px;
+    }
+
+    .drawer-actions {
+      margin-top: auto;
+      padding: 16px 20px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      background: var(--panel-soft);
+    }
+
+    .field { display: grid; gap: 8px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .label {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .02em;
+      color: #344054;
+    }
+
+    input, select, textarea {
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      padding: 10px 11px;
+      outline: none;
+      background: white;
+      color: var(--text);
+    }
+
+    textarea { min-height: 72px; resize: vertical; }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(40,91,231,.12);
+    }
+
+    .chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 1px solid var(--line-strong);
+      background: white;
+      border-radius: 999px;
+      padding: 8px 11px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    .day-time-list { display: grid; gap: 10px; }
+    .day-time-row {
+      display: grid;
+      grid-template-columns: 92px 1fr 1fr auto;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-soft);
+      padding: 9px;
+    }
+    .day-time-row strong { font-size: 13px; }
+
+    .change-control-group {
+      display: grid;
+      gap: 10px;
+      transition: opacity .12s ease;
+    }
+
+    .change-control-group.paused {
+      opacity: .48;
+      filter: grayscale(.15);
+    }
+
+    .change-control-group.paused input,
+    .change-control-group.paused button {
+      pointer-events: none;
+    }
+
+    .change-row {
+      display: grid;
+      grid-template-columns: 94px 1fr;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-soft);
+      padding: 10px;
+    }
+
+    .signed-stepper {
+      display: grid;
+      grid-template-columns: 42px minmax(120px, 1fr) 42px;
+      align-items: center;
+      gap: 0;
+      max-width: 260px;
+    }
+
+    .signed-stepper button {
+      height: 42px;
+      border: 1px solid var(--line-strong);
+      background: white;
+      font-weight: 950;
+      cursor: pointer;
+    }
+
+    .signed-stepper button:first-child { border-radius: 10px 0 0 10px; }
+    .signed-stepper button:last-child { border-radius: 0 10px 10px 0; }
+    .signed-stepper input {
+      height: 42px;
+      border-left: 0;
+      border-right: 0;
+      border-radius: 0;
+      text-align: center;
+      font-weight: 850;
+    }
+
+    .pause-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .pause-note { color: var(--muted); font-size: 12px; line-height: 1.35; }
+
+    .segmented {
+      display: inline-grid;
+      grid-template-columns: 1fr 1fr;
+      border: 1px solid var(--line-strong);
+      border-radius: 10px;
+      overflow: hidden;
+      background: white;
+    }
+
+    .segmented button {
+      border: 0;
+      background: white;
+      padding: 9px 12px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .segmented button.active { background: var(--primary); color: white; }
+
+    .pct-wrap {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pct-wrap input { width: 100%; }
+    .pct-wrap span { color: var(--muted); font-size: 13px; font-weight: 700; }
+
+    .form-warning {
+      display: none;
+      border: 1px solid #f2cf8b;
+      background: var(--warning-soft);
+      color: #6f4700;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .form-warning.show { display: block; }
+
+    .modal-backdrop { z-index: 35; }
+
+    .confirm-modal {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -48%) scale(.98);
+      width: min(460px, calc(100vw - 32px));
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 24px 80px rgba(15,23,42,.24);
+      padding: 18px;
+      z-index: 36;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .16s ease, transform .16s ease;
+    }
+
+    .confirm-modal.open {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    .confirm-modal h2 { margin: 0 0 8px; font-size: 18px; }
+    .confirm-modal p { margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .confirm-list { display: grid; gap: 8px; margin: 12px 0 16px; }
+    .confirm-item { background: var(--warning-soft); color: #6f4700; padding: 9px; border-radius: 10px; font-size: 12px; font-weight: 800; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+    .payload {
+      display: none;
+      white-space: pre-wrap;
+      background: #0b1220;
+      color: #dbeafe;
+      border-radius: 14px;
+      padding: 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.55;
+      max-height: 320px;
+      overflow: auto;
+      margin-top: 12px;
+    }
+
+    .payload.open { display: block; }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translate(-50%, 20px);
+      background: #111827;
+      color: white;
+      border-radius: 999px;
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 800;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease, transform .2s ease;
+      z-index: 40;
+      box-shadow: 0 16px 40px rgba(0,0,0,.2);
+    }
+
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (max-width: 1180px) {
+      .workspace { grid-template-columns: 1fr; }
+      .suggestion-grid { grid-template-columns: 1fr; }
+      .compact-header { flex-direction: column; align-items: flex-start; }
+      .footer-note { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .app { padding: 14px; }
+      .metric-strip { grid-template-columns: 1fr; }
+      .field-row, .change-row, .day-time-row { grid-template-columns: 1fr; }
+      .signed-stepper { max-width: none; }
+      .drawer-actions, .modal-actions { flex-direction: column-reverse; }
+      .drawer-actions .btn, .modal-actions .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="compact-header">
+      <div>
+        <h1>Rule-based ad schedule</h1>
+        <p>Build campaign changes as editable rules. The grid only previews where a budget or bid change applies and stays blank when nothing is scheduled.</p>
+      </div>
+      <button id="saveSchedule" class="btn primary">Save schedule</button>
+    </section>
+
+    <section class="panel suggestions" aria-label="Suggested rules based on historic data">
+      <div class="panel-header">
+        <div>
+          <h2>Suggested rules based on historic data</h2>
+          <p>Suggestions disappear once applied, adjusted or disregarded. Generate can bring back eligible suggestions that are no longer active rules.</p>
+        </div>
+        <button id="generateSuggestions" class="btn small primary">Generate suggestions</button>
+      </div>
+      <div id="suggestionGrid" class="panel-body suggestion-grid"></div>
+    </section>
+
+    <section class="workspace">
+      <aside class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Rules</h2>
+          </div>
+          <button id="openDrawer" class="btn primary small">+ Add rule</button>
+        </div>
+        <div class="panel-body">
+          <div id="ruleCount" class="pill info" style="margin-bottom:12px;">0 rules</div>
+          <p class="priority-note">Drag rules to change priority. Top rule wins when overlap resolution is set to priority.</p>
+          <div id="ruleList" class="rule-list" aria-label="Rules ordered by priority"></div>
+        </div>
+      </aside>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Weekly preview grid</h2>
+            <p>Hourly cells show scheduled changes only. Blank cells keep the base campaign settings.</p>
+          </div>
+          <button id="togglePayload" class="btn small">Show rule payload</button>
+        </div>
+        <div class="panel-body">
+          <div class="metric-strip">
+            <div class="metric"><div class="name">Base campaign budget</div><div id="baseBudgetMetric" class="value">€0</div><div class="note">Defined outside this scheduler</div></div>
+            <div class="metric"><div class="name">Base campaign bid</div><div id="baseBidMetric" class="value">€0.00</div><div class="note">Rule changes are calculated from this value</div></div>
+          </div>
+
+          <div class="grid-controls">
+            <div class="legend">
+              <span class="legend-item"><span class="swatch change"></span>Scheduled change</span>
+              <span class="legend-item"><span class="swatch overlap"></span>Overlap / needs rule</span>
+            </div>
+            <span id="resolutionMode" class="pill neutral">Overlap mode: unresolved</span>
+          </div>
+
+          <div class="grid-scroll" aria-label="Weekly schedule grid">
+            <div id="scheduleGrid" class="schedule-grid"></div>
+          </div>
+          <pre id="payload" class="payload" aria-label="Rule payload preview"></pre>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Review</h2>
+            <p>Impact, guardrails and documentation before changes go live.</p>
+          </div>
+        </div>
+        <div class="panel-body side-list">
+          <div class="insight-card">
+            <h3>Impact preview</h3>
+            <div id="impactLines"></div>
+          </div>
+          <div class="insight-card">
+            <h3>Warnings & checks</h3>
+            <div id="warnings" class="warning-list"></div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="footer-note">
+      <div>
+        <h2>Why this design?</h2>
+        <p>The scheduler treats budget and bid changes as reusable rules rather than isolated cell edits. Suggestions can be generated from historic performance data, reviewed by the user, then applied directly or edited before becoming active schedule rules.</p>
+      </div>
+      <ul>
+        <li>The rule list is the source of truth; the grid is a readable preview of the resulting hourly schedule.</li>
+        <li>Applied or adjusted suggestions disappear to avoid duplicate recommendations, while deleted rules can be suggested again.</li>
+        <li>Disregarded suggestions stay hidden so the system does not keep resurfacing rejected ideas.</li>
+        <li>Overlaps are not left ambiguous: users can combine them or let priority order decide which rule applies.</li>
+        <li>Large budget or bid increases require explicit confirmation at the moment of saving the rule.</li>
+      </ul>
+    </section>
+  </main>
+
+  <div id="drawerBackdrop" class="drawer-backdrop"></div>
+  <aside id="drawer" class="drawer" aria-label="Add rule drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <div>
+        <h2 id="drawerTitle">Add scheduling rule</h2>
+        <p>Select weekdays, define hourly start and end times, then set budget and bid adjustments.</p>
+      </div>
+      <button id="closeDrawer" class="btn small ghost" aria-label="Close drawer">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div id="formWarning" class="form-warning"></div>
+
+      <label class="field">
+        <span class="label">Rule name</span>
+        <input id="ruleName" type="text" placeholder="Weekday lunch increase" />
+      </label>
+
+      <div class="field">
+        <span class="label">Weekdays</span>
+        <div id="dayChips" class="chip-group" aria-label="Select weekdays"></div>
+      </div>
+
+      <div class="field">
+        <span class="label">Time window per selected weekday</span>
+        <div id="dayTimeRows" class="day-time-list"></div>
+      </div>
+
+      <div class="field">
+        <span class="label">Campaign action</span>
+        <div class="pause-control">
+          <button id="pauseCampaign" class="btn small danger" type="button">Pause campaign</button>
+          <span id="pauseNote" class="pause-note">When paused, budget and bid changes are ignored for the selected hours.</span>
+        </div>
+      </div>
+
+      <div id="changeControlGroup" class="change-control-group">
+        <div class="field">
+          <span class="label">Budget change</span>
+          <div class="change-row">
+            <strong>Budget</strong>
+            <div class="signed-stepper" aria-label="Budget percentage change">
+              <button id="budgetMinusStep" type="button" aria-label="Decrease budget change">−</button>
+              <input id="budgetPct" type="text" inputmode="numeric" value="0%" aria-label="Budget percentage change" />
+              <button id="budgetPlusStep" type="button" aria-label="Increase budget change">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="label">Bid change</span>
+          <div class="change-row">
+            <strong>Bid</strong>
+            <div class="signed-stepper" aria-label="Bid percentage change">
+              <button id="bidMinusStep" type="button" aria-label="Decrease bid change">−</button>
+              <input id="bidPct" type="text" inputmode="numeric" value="0%" aria-label="Bid percentage change" />
+              <button id="bidPlusStep" type="button" aria-label="Increase bid change">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <label class="field">
+        <span class="label">Reason / note for audit trail</span>
+        <textarea id="reason" placeholder="Example: Historic lunch demand is high and recent spend did not reach the daily cap."></textarea>
+      </label>
+    </div>
+    <div class="drawer-actions">
+      <button id="cancelRule" class="btn">Cancel</button>
+      <button id="saveRule" class="btn primary">Save rule</button>
+    </div>
+  </aside>
+
+  <div id="confirmBackdrop" class="modal-backdrop"></div>
+  <section id="confirmModal" class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-hidden="true">
+    <h2 id="confirmTitle">Confirm large increase</h2>
+    <p>This rule increases budget and/or bid by more than 100%. Confirming keeps the change, otherwise return to editing.</p>
+    <div id="confirmDetails" class="confirm-list"></div>
+    <div class="modal-actions">
+      <button id="cancelConfirm" class="btn">Go back</button>
+      <button id="confirmSave" class="btn primary">Confirm and save rule</button>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const days = [
+      { key: 'mon', label: 'Mon', full: 'Monday' },
+      { key: 'tue', label: 'Tue', full: 'Tuesday' },
+      { key: 'wed', label: 'Wed', full: 'Wednesday' },
+      { key: 'thu', label: 'Thu', full: 'Thursday' },
+      { key: 'fri', label: 'Fri', full: 'Friday' },
+      { key: 'sat', label: 'Sat', full: 'Saturday' },
+      { key: 'sun', label: 'Sun', full: 'Sunday' }
+    ];
+
+    const baseCampaign = {
+      weeklyBudget: 2000,
+      bid: 1.20,
+      currency: 'EUR',
+      timezone: 'Europe/Berlin'
+    };
+
+    const suggestionTemplates = [
+      {
+        id: 'weekday-lunch-coverage',
+        name: 'Increase weekday lunch coverage',
+        windows: createWindows(['mon','tue','wed','thu','fri'], 11, 14),
+        budget: { direction: 'increase', pct: 20 },
+        bid: { direction: 'increase', pct: 10 },
+        pause: false,
+        reason: 'Historic data shows stronger order concentration around weekday lunch. Increase budget and bid during this window rather than changing the full day.'
+      },
+      {
+        id: 'sunday-evening-reduction',
+        name: 'Reduce low-demand late evening spend',
+        windows: createWindows(['sun'], 20, 23),
+        budget: { direction: 'decrease', pct: 30 },
+        bid: { direction: 'decrease', pct: 15 },
+        pause: false,
+        reason: 'Historic Sunday late evening volume is comparatively weak. Reduce spend during this window while keeping the campaign active.'
+      },
+      {
+        id: 'friday-dinner-peak',
+        name: 'Test Friday dinner peak',
+        windows: createWindows(['fri'], 18, 21),
+        budget: { direction: 'increase', pct: 40 },
+        bid: { direction: 'increase', pct: 20 },
+        pause: false,
+        reason: 'Friday early evening appears to be a plausible high-intent window. Run a limited test instead of increasing bids across the entire weekend.'
+      },
+      {
+        id: 'weekend-lunch-test',
+        name: 'Test weekend lunch demand',
+        windows: createWindows(['sat','sun'], 12, 15),
+        budget: { direction: 'increase', pct: 15 },
+        bid: { direction: 'increase', pct: 10 },
+        pause: false,
+        reason: 'Weekend lunch volume is inconsistent but shows occasional peaks. Use a modest test window to validate whether higher coverage improves return.'
+      },
+      {
+        id: 'early-morning-protection',
+        name: 'Reduce early morning spend',
+        windows: createWindows(['mon','tue','wed','thu','fri'], 0, 7),
+        budget: { direction: 'decrease', pct: 40 },
+        bid: { direction: 'decrease', pct: 20 },
+        pause: false,
+        reason: 'Historic overnight and early morning activity is low. Lower exposure during these hours and preserve the base budget for stronger demand windows.'
+      },
+      {
+        id: 'pause-overnight-spend',
+        name: 'Pause overnight campaign',
+        windows: createWindows(['mon','tue','wed','thu','fri'], 0, 6),
+        budget: { direction: 'increase', pct: 0 },
+        bid: { direction: 'increase', pct: 0 },
+        pause: true,
+        reason: 'Historic overnight activity is very low. Pause the campaign during these hours instead of running small negative bid or budget changes.'
+      },
+      {
+        id: 'saturday-evening-boost',
+        name: 'Increase Saturday evening reach',
+        windows: createWindows(['sat'], 18, 22),
+        budget: { direction: 'increase', pct: 30 },
+        bid: { direction: 'increase', pct: 15 },
+        pause: false,
+        reason: 'Saturday evening has enough historic signal to justify a controlled reach increase without changing the rest of the weekend.'
+      }
+    ];
+
+    let selectedRuleId = null;
+    let editingRuleId = null;
+    let editingSourceSuggestionId = null;
+    let formWindows = emptyFormWindows();
+    let formPaused = false;
+    let pendingRuleForConfirmation = null;
+    let draggedRuleId = null;
+    let overlapResolution = 'unresolved';
+    let pauseConflictResolution = 'unresolved';
+    let visibleSuggestionIds = ['weekday-lunch-coverage', 'sunday-evening-reduction', 'friday-dinner-peak'];
+    const disregardedSuggestionIds = new Set();
+
+    let rules = [
+      {
+        id: cryptoId(),
+        name: 'Weekday lunch increase',
+        windows: createWindows(['mon','tue','wed','thu','fri'], 11, 14),
+        budget: { direction: 'increase', pct: 20 },
+        bid: { direction: 'increase', pct: 10 },
+        pause: false,
+        largeIncreaseConfirmed: false,
+        reason: 'Historic lunch demand is higher than surrounding hours, so the change is limited to 11:00-14:00 on weekdays.',
+        sourceSuggestionId: null
+      },
+      {
+        id: cryptoId(),
+        name: 'Sunday evening reduction',
+        windows: createWindows(['sun'], 20, 23),
+        budget: { direction: 'decrease', pct: 30 },
+        bid: { direction: 'decrease', pct: 15 },
+        pause: false,
+        largeIncreaseConfirmed: false,
+        reason: 'Sunday evening has lower historical demand, so budget and bid are reduced without pausing the full campaign.',
+        sourceSuggestionId: null
+      }
+    ];
+
+    function cryptoId() {
+      return 'rule_' + Math.random().toString(36).slice(2, 10);
+    }
+
+    function createWindows(dayKeys, start, end, allDay = false) {
+      return dayKeys.map(day => ({ day, start, end, allDay }));
+    }
+
+    function emptyFormWindows() {
+      return days.reduce((acc, day) => {
+        acc[day.key] = { selected: false, start: 9, end: 17, allDay: false };
+        return acc;
+      }, {});
+    }
+
+    function money(n, maxDigits = 0) {
+      return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: maxDigits }).format(n);
+    }
+
+    function hourLabel(hour) {
+      return `${String(hour).padStart(2, '0')}:00`;
+    }
+
+    function hourRangeLabel(hour) {
+      const end = hour === 23 ? '23:59' : hourLabel(hour + 1);
+      return `${hourLabel(hour)}-${end}`;
+    }
+
+    function windowLabel(w) {
+      const start = hourLabel(w.start);
+      const end = w.end === 24 ? '23:59' : hourLabel(w.end);
+      return `${start}-${end}`;
+    }
+
+    function signedPct(change) {
+      if (!change) return 0;
+      const pct = Number(change.pct || 0);
+      return change.direction === 'decrease' ? -pct : pct;
+    }
+
+    function changeFromSigned(value) {
+      const clamped = clampPct(value);
+      return clamped < 0
+        ? { direction: 'decrease', pct: Math.abs(clamped) }
+        : { direction: 'increase', pct: clamped };
+    }
+
+    function clampPct(value) {
+      const parsed = Number.isFinite(Number(value)) ? Number(value) : 0;
+      return Math.max(-100, Math.min(10000, Math.round(parsed)));
+    }
+
+    function parsePctInput(id) {
+      const raw = String(document.getElementById(id).value || '').replace('%', '').replace(',', '.').trim();
+      return clampPct(raw === '' || raw === '+' || raw === '-' ? 0 : Number(raw));
+    }
+
+    function formatPct(value) {
+      const clamped = clampPct(value);
+      return `${clamped}%`;
+    }
+
+    function setPctInput(id, value) {
+      document.getElementById(id).value = formatPct(value);
+    }
+
+    function stepPctInput(id, delta) {
+      setPctInput(id, parsePctInput(id) + delta);
+      updateFormWarning();
+    }
+
+    function normalizePctInputs() {
+      setPctInput('budgetPct', parsePctInput('budgetPct'));
+      setPctInput('bidPct', parsePctInput('bidPct'));
+    }
+
+    function changeText(noun, change) {
+      const value = signedPct(change);
+      if (value === 0) return '';
+      return `${noun} ${value > 0 ? '+' : ''}${value}%`;
+    }
+
+    function ruleHasActiveChange(rule) {
+      return !!rule.pause || signedPct(rule.budget) !== 0 || signedPct(rule.bid) !== 0;
+    }
+
+    function ruleDaysText(rule) {
+      const unique = [...new Set(rule.windows.map(w => w.day))];
+      if (days.slice(0,5).every(d => unique.includes(d.key)) && unique.length === 5) return 'Mon-Fri';
+      if (['sat','sun'].every(k => unique.includes(k)) && unique.length === 2) return 'Weekend';
+      return days.filter(d => unique.includes(d.key)).map(d => d.label).join(', ');
+    }
+
+    function ruleWindowsText(rule) {
+      return rule.windows.map(w => `${days.find(d => d.key === w.day)?.label || w.day} ${windowLabel(w)}`).join(', ');
+    }
+
+    function activeSourceSuggestionIds() {
+      return new Set(rules.map(r => r.sourceSuggestionId).filter(Boolean));
+    }
+
+    function findSuggestion(id) {
+      return suggestionTemplates.find(s => s.id === id);
+    }
+
+    function eligibleSuggestionIds() {
+      const activeSources = activeSourceSuggestionIds();
+      return suggestionTemplates
+        .filter(s => !disregardedSuggestionIds.has(s.id))
+        .filter(s => !activeSources.has(s.id))
+        .map(s => s.id);
+    }
+
+    function getApplicableRules(dayKey, hour) {
+      return rules.filter(rule => rule.windows.some(w => w.day === dayKey && hour >= w.start && hour < w.end));
+    }
+
+    function getEffectiveRules(applicable) {
+      let effective = [...applicable];
+      const hasPause = effective.some(rule => rule.pause);
+      const hasChange = effective.some(rule => !rule.pause);
+
+      if (hasPause && hasChange && pauseConflictResolution === 'pause') {
+        effective = effective.filter(rule => rule.pause);
+      } else if (hasPause && hasChange && pauseConflictResolution === 'changes') {
+        effective = effective.filter(rule => !rule.pause);
+      }
+
+      if (overlapResolution === 'priority' && effective.length > 1) {
+        return [effective[0]];
+      }
+      return effective;
+    }
+
+    function budgetMultiplierFor(rule) {
+      if (rule.pause) return 0;
+      const value = signedPct(rule.budget) / 100;
+      return value >= 0 ? 1 + value : Math.max(0, 1 + value);
+    }
+
+    function bidMultiplierFor(rule) {
+      if (rule.pause) return 0;
+      const value = signedPct(rule.bid) / 100;
+      return value >= 0 ? 1 + value : Math.max(0, 1 + value);
+    }
+
+    function combinedMultipliers(applicable) {
+      if (applicable.some(rule => rule.pause)) return { budget: 0, bid: 0, paused: true };
+      return applicable.reduce((acc, rule) => {
+        acc.budget *= budgetMultiplierFor(rule);
+        acc.bid *= bidMultiplierFor(rule);
+        return acc;
+      }, { budget: 1, bid: 1, paused: false });
+    }
+
+    function computeImpact() {
+      const basePerHour = baseCampaign.weeklyBudget / (7 * 24);
+      let scheduledSpendDelta = 0;
+      let changedHours = 0;
+      let pausedHours = 0;
+      let maxHourlyIncrease = 0;
+      let maxHourlyDecrease = 0;
+
+      for (const day of days) {
+        for (let hour = 0; hour < 24; hour++) {
+          const applicable = getApplicableRules(day.key, hour).filter(ruleHasActiveChange);
+          if (!applicable.length) continue;
+          const effective = getEffectiveRules(applicable).filter(ruleHasActiveChange);
+          if (!effective.length) continue;
+          changedHours += 1;
+          const { budget, paused } = combinedMultipliers(effective);
+          if (paused) pausedHours += 1;
+          const delta = basePerHour * (budget - 1);
+          scheduledSpendDelta += delta;
+          maxHourlyIncrease = Math.max(maxHourlyIncrease, delta);
+          maxHourlyDecrease = Math.min(maxHourlyDecrease, delta);
+        }
+      }
+      return { basePerHour, scheduledSpendDelta, changedHours, pausedHours, maxHourlyIncrease, maxHourlyDecrease };
+    }
+
+    function windowsOverlap(a, b) {
+      return a.day === b.day && a.start < b.end && b.start < a.end;
+    }
+
+    function detectOverlaps(candidate = null) {
+      const allRules = candidate ? [...rules.filter(r => r.id !== candidate.id), candidate] : rules;
+      const overlaps = [];
+      for (let i = 0; i < allRules.length; i++) {
+        for (let j = i + 1; j < allRules.length; j++) {
+          const a = allRules[i];
+          const b = allRules[j];
+          const hasOverlap = a.windows.some(aw => b.windows.some(bw => windowsOverlap(aw, bw)));
+          if (hasOverlap) overlaps.push({ aId: a.id, bId: b.id, a: a.name, b: b.name, pauseConflict: !!a.pause !== !!b.pause });
+        }
+      }
+      return overlaps;
+    }
+
+    function detectPauseConflicts(candidate = null) {
+      return detectOverlaps(candidate).filter(pair => pair.pauseConflict);
+    }
+
+    function ruleRequiresConfirmation(rule) {
+      if (rule.pause) return false;
+      return signedPct(rule.budget) > 100 || signedPct(rule.bid) > 100;
+    }
+
+    function confirmationLines(rule) {
+      const lines = [];
+      if (signedPct(rule.budget) > 100) lines.push(`Budget increase: +${signedPct(rule.budget)}%`);
+      if (signedPct(rule.bid) > 100) lines.push(`Bid increase: +${signedPct(rule.bid)}%`);
+      return lines;
+    }
+
+    function extremeRules() {
+      return rules.filter(rule => ruleRequiresConfirmation(rule) && !rule.largeIncreaseConfirmed);
+    }
+
+    function getBlockingChecks() {
+      const overlaps = detectOverlaps();
+      const pauseConflicts = detectPauseConflicts();
+      const standardOverlaps = overlaps.filter(pair => !pair.pauseConflict);
+      const missingReasons = rules.filter(r => !r.reason || !r.reason.trim());
+      const noChangeRules = rules.filter(r => !ruleHasActiveChange(r));
+      const unconfirmedLarge = extremeRules();
+      const checks = [];
+      if (!rules.length) checks.push('Add at least one rule before saving.');
+      if (standardOverlaps.length && overlapResolution === 'unresolved') checks.push('Choose how overlapping budget/bid rules should be handled.');
+      if (pauseConflicts.length && pauseConflictResolution === 'unresolved') checks.push('Choose whether pause or budget/bid changes win in pause overlaps.');
+      if (missingReasons.length) checks.push('Add a reason to every rule.');
+      if (noChangeRules.length) checks.push('Remove or edit rules without an active change.');
+      if (unconfirmedLarge.length) checks.push('Confirm large increases before saving.');
+      return checks;
+    }
+
+    function renderSuggestions() {
+      const grid = document.getElementById('suggestionGrid');
+      grid.innerHTML = '';
+      visibleSuggestionIds = visibleSuggestionIds.filter(id => eligibleSuggestionIds().includes(id));
+
+      if (!visibleSuggestionIds.length) {
+        grid.innerHTML = '<div class="empty-state">No active suggestions shown. Generate suggestions to surface eligible historic-data rules. Disregarded suggestions will stay hidden.</div>';
+        return;
+      }
+
+      visibleSuggestionIds.forEach(id => {
+        const suggestion = findSuggestion(id);
+        if (!suggestion) return;
+        const card = document.createElement('article');
+        card.className = 'suggestion-card';
+        const changeSummary = suggestion.pause
+          ? 'Campaign paused'
+          : [changeText('Budget', suggestion.budget), changeText('Bid', suggestion.bid)].filter(Boolean).join(' · ');
+        card.innerHTML = `
+          <h3>${escapeHtml(suggestion.name)}</h3>
+          <p>${escapeHtml(ruleWindowsText(suggestion))}</p>
+          <p><strong>${escapeHtml(changeSummary)}</strong></p>
+          <p>${escapeHtml(suggestion.reason)}</p>
+          <div class="suggestion-actions">
+            <button class="btn small primary" data-apply="${suggestion.id}">Apply</button>
+            <button class="btn small" data-adjust="${suggestion.id}">Adjust</button>
+            <button class="btn small danger" data-disregard="${suggestion.id}">Disregard</button>
+          </div>
+        `;
+        card.querySelector('[data-apply]').addEventListener('click', () => applySuggestion(suggestion.id));
+        card.querySelector('[data-adjust]').addEventListener('click', () => adjustSuggestion(suggestion.id));
+        card.querySelector('[data-disregard]').addEventListener('click', () => disregardSuggestion(suggestion.id));
+        grid.appendChild(card);
+      });
+    }
+
+    function renderRuleList() {
+      const list = document.getElementById('ruleList');
+      list.innerHTML = '';
+      document.getElementById('ruleCount').textContent = `${rules.length} rule${rules.length === 1 ? '' : 's'}`;
+
+      if (!rules.length) {
+        list.innerHTML = '<div class="insight-card"><p>No scheduling rules yet. Add one manually or apply a suggested rule.</p></div>';
+        return;
+      }
+
+      rules.forEach((rule, index) => {
+        const card = document.createElement('article');
+        card.className = 'rule-card' + (selectedRuleId === rule.id ? ' selected' : '');
+        card.tabIndex = 0;
+        card.draggable = true;
+        card.dataset.ruleId = rule.id;
+        const changes = rule.pause
+          ? 'Campaign paused'
+          : ([changeText('Budget', rule.budget), changeText('Bid', rule.bid)].filter(Boolean).join(' · ') || 'No value change');
+        card.innerHTML = `
+          <div class="rule-top">
+            <div class="rule-heading">
+              <span class="drag-handle" title="Drag to reorder priority">☰</span>
+              <div>
+                <h3 class="rule-title">${escapeHtml(rule.name)}</h3>
+                <p class="rule-meta" style="margin-top:3px;">Priority ${index + 1}</p>
+              </div>
+            </div>
+            <span class="pill neutral">${ruleDaysText(rule)}</span>
+          </div>
+          <p class="rule-meta">${escapeHtml(ruleWindowsText(rule))}<br>${escapeHtml(changes)}</p>
+          <div class="rule-actions">
+            <button class="btn small" data-edit="${rule.id}">Edit</button>
+            <button class="btn small danger" data-delete="${rule.id}">Delete</button>
+          </div>
+        `;
+        card.addEventListener('click', (e) => {
+          const editId = e.target.getAttribute('data-edit');
+          const deleteId = e.target.getAttribute('data-delete');
+          if (editId) { openDrawerForRule(rule); return; }
+          if (deleteId) { deleteRule(rule.id); return; }
+          selectedRuleId = selectedRuleId === rule.id ? null : rule.id;
+          render();
+        });
+        card.addEventListener('dragstart', (e) => {
+          draggedRuleId = rule.id;
+          card.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', rule.id);
+        });
+        card.addEventListener('dragend', () => {
+          draggedRuleId = null;
+          document.querySelectorAll('.rule-card').forEach(c => c.classList.remove('dragging', 'drag-over'));
+        });
+        card.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          if (draggedRuleId && draggedRuleId !== rule.id) card.classList.add('drag-over');
+        });
+        card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+        card.addEventListener('drop', (e) => {
+          e.preventDefault();
+          card.classList.remove('drag-over');
+          const fromId = e.dataTransfer.getData('text/plain') || draggedRuleId;
+          reorderRules(fromId, rule.id);
+        });
+        list.appendChild(card);
+      });
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById('scheduleGrid');
+      const basePerHour = baseCampaign.weeklyBudget / (7 * 24);
+      grid.innerHTML = '';
+
+      const corner = document.createElement('div');
+      corner.className = 'corner';
+      corner.textContent = 'Hour';
+      grid.appendChild(corner);
+
+      days.forEach(day => {
+        const head = document.createElement('div');
+        head.className = 'day-head';
+        head.innerHTML = `${day.label}<span>${day.full}</span>`;
+        grid.appendChild(head);
+      });
+
+      for (let hour = 0; hour < 24; hour++) {
+        const timeHead = document.createElement('div');
+        timeHead.className = 'time-head';
+        timeHead.innerHTML = `${hourRangeLabel(hour)}<span>hourly slot</span>`;
+        grid.appendChild(timeHead);
+
+        days.forEach(day => {
+          const applicable = getApplicableRules(day.key, hour).filter(ruleHasActiveChange);
+          const effective = getEffectiveRules(applicable).filter(ruleHasActiveChange);
+          const hasPauseConflict = applicable.some(rule => rule.pause) && applicable.some(rule => !rule.pause) && pauseConflictResolution === 'unresolved';
+          const hasGenericConflict = applicable.length > 1 && !hasPauseConflict && overlapResolution === 'unresolved';
+          const hasConflict = hasPauseConflict || hasGenericConflict;
+          const cell = document.createElement('div');
+          cell.className = 'cell' + (effective.length ? ' changed' : '') + (hasConflict ? ' conflict' : '');
+
+          if (!effective.length) {
+            cell.innerHTML = '<div class="blank-cell"></div>';
+            grid.appendChild(cell);
+            return;
+          }
+
+          const selectedOpacity = selectedRuleId ? 'opacity:.35' : '';
+          const isPaused = combinedMultipliers(effective).paused;
+          let rulePills = '';
+
+          if (isPaused) {
+            rulePills = '<span class="change-pill pause">Campaign paused</span>';
+          } else {
+            rulePills = effective.map(rule => {
+              const style = selectedRuleId && rule.id !== selectedRuleId ? selectedOpacity : '';
+              const budgetClass = signedPct(rule.budget) > 0 ? 'up' : 'down';
+              const bidClass = signedPct(rule.bid) > 0 ? 'up' : 'down';
+              const parts = [];
+              if (signedPct(rule.budget) !== 0) parts.push(`<span class="change-pill ${budgetClass}" style="${style}">${escapeHtml(changeText('Budget', rule.budget))}</span>`);
+              if (signedPct(rule.bid) !== 0) parts.push(`<span class="change-pill ${bidClass}" style="${style}">${escapeHtml(changeText('Bid', rule.bid))}</span>`);
+              return parts.join('');
+            }).join('');
+          }
+
+          const { budget } = combinedMultipliers(effective);
+          const delta = basePerHour * (budget - 1);
+          const deltaClass = delta >= 0 ? 'positive' : 'negative';
+          const overlapMark = hasPauseConflict
+            ? '<span class="change-pill conflictmark">Pause conflict</span>'
+            : (applicable.length > 1 && overlapResolution === 'priority'
+              ? '<span class="change-pill prioritymark">Priority applied</span>'
+              : (hasConflict ? '<span class="change-pill conflictmark">Overlap</span>' : ''));
+          const spendLine = isPaused
+            ? ''
+            : `<div class="spend-delta ${deltaClass}">${delta >= 0 ? '+' : '-'}${money(Math.abs(delta), 2)}/h spend</div>`;
+          cell.innerHTML = `
+            <div class="change-stack">${rulePills}${overlapMark}</div>
+            ${spendLine}
+          `;
+          grid.appendChild(cell);
+        });
+      }
+    }
+
+    function renderImpact() {
+      const { basePerHour, scheduledSpendDelta, changedHours, pausedHours, maxHourlyIncrease, maxHourlyDecrease } = computeImpact();
+      document.getElementById('baseBudgetMetric').textContent = money(baseCampaign.weeklyBudget);
+      document.getElementById('baseBidMetric').textContent = money(baseCampaign.bid, 2);
+      const pauseMode = pauseConflictResolution === 'unresolved' ? '' : ` · pause conflict: ${pauseConflictResolution === 'pause' ? 'pause wins' : 'changes win'}`;
+      document.getElementById('resolutionMode').textContent = `Overlap mode: ${overlapResolution}${pauseMode}`;
+      document.getElementById('impactLines').innerHTML = `
+        <div class="impact-line"><span>Base budget per hour</span><strong>${money(basePerHour, 2)}</strong></div>
+        <div class="impact-line"><span>Scheduled weekly spend change</span><strong>${scheduledSpendDelta >= 0 ? '+' : '-'}${money(Math.abs(scheduledSpendDelta), 2)}</strong></div>
+        <div class="impact-line"><span>Changed hourly cells</span><strong>${changedHours}/168</strong></div>
+        <div class="impact-line"><span>Paused hourly cells</span><strong>${pausedHours}/168</strong></div>
+        <div class="impact-line"><span>Largest hourly increase</span><strong>${money(maxHourlyIncrease, 2)}</strong></div>
+        <div class="impact-line"><span>Largest hourly decrease</span><strong>${money(Math.abs(maxHourlyDecrease), 2)}</strong></div>
+        <div class="impact-line"><span>Rules documented</span><strong>${rules.filter(r => r.reason && r.reason.trim()).length}/${rules.length}</strong></div>
+      `;
+    }
+
+    function renderWarnings() {
+      const warnings = document.getElementById('warnings');
+      const overlaps = detectOverlaps();
+      const pauseConflicts = detectPauseConflicts();
+      const standardOverlaps = overlaps.filter(pair => !pair.pauseConflict);
+      const unresolvedGeneric = standardOverlaps.length && overlapResolution === 'unresolved';
+      const unresolvedPause = pauseConflicts.length && pauseConflictResolution === 'unresolved';
+      const extremes = extremeRules();
+      const missingReasons = rules.filter(r => !r.reason || !r.reason.trim());
+      const noChangeRules = rules.filter(r => !ruleHasActiveChange(r));
+      const items = [];
+
+      if (!rules.length) items.push('<div class="warning-row">No rules have been added yet.</div>');
+      if (!standardOverlaps.length && !pauseConflicts.length && !extremes.length && !missingReasons.length && !noChangeRules.length && rules.length) {
+        items.push('<div class="warning-row ok">✓ No open checks detected. The schedule can be saved.</div>');
+      }
+      if (standardOverlaps.length) {
+        items.push(`
+          <div class="warning-row ${unresolvedGeneric ? 'dangerish' : ''}">
+            <div>${unresolvedGeneric ? 'Open check:' : 'Resolved:'} Overlapping rules exist. Choose whether overlaps are combined or resolved by priority.</div>
+            <div class="warning-actions">
+              <button class="btn small ${overlapResolution === 'combine' ? 'active' : ''}" data-combine-overlaps>Combine overlaps</button>
+              <button class="btn small ${overlapResolution === 'priority' ? 'active' : ''}" data-priority-overlaps>Resolve by priority</button>
+            </div>
+          </div>`);
+      }
+      pauseConflicts.forEach(pair => items.push(`
+        <div class="warning-row ${unresolvedPause ? 'dangerish' : ''}">
+          <div>${unresolvedPause ? 'Open check:' : 'Resolved:'} Pause overlaps with budget/bid changes between “${escapeHtml(pair.a)}” and “${escapeHtml(pair.b)}”. Choose which action should apply.</div>
+          <div class="warning-actions">
+            <button class="btn small ${pauseConflictResolution === 'pause' ? 'active' : ''}" data-pause-wins>Pause campaign</button>
+            <button class="btn small ${pauseConflictResolution === 'changes' ? 'active' : ''}" data-changes-win>Apply budget/bid changes</button>
+          </div>
+        </div>`));
+      extremes.forEach(r => items.push(`<div class="warning-row dangerish">“${escapeHtml(r.name)}” increases budget or bid by more than 100% and still needs explicit confirmation.</div>`));
+      missingReasons.forEach(r => items.push(`<div class="warning-row">“${escapeHtml(r.name)}” has no reason. Notes make later review and account handover easier.</div>`));
+      noChangeRules.forEach(r => items.push(`<div class="warning-row">“${escapeHtml(r.name)}” does not change budget or bid and does not pause the campaign. It can be removed unless it is a placeholder.</div>`));
+      warnings.innerHTML = items.join('');
+      warnings.querySelectorAll('[data-combine-overlaps]').forEach(btn => btn.addEventListener('click', () => setOverlapResolution('combine')));
+      warnings.querySelectorAll('[data-priority-overlaps]').forEach(btn => btn.addEventListener('click', () => setOverlapResolution('priority')));
+      warnings.querySelectorAll('[data-pause-wins]').forEach(btn => btn.addEventListener('click', () => setPauseConflictResolution('pause')));
+      warnings.querySelectorAll('[data-changes-win]').forEach(btn => btn.addEventListener('click', () => setPauseConflictResolution('changes')));
+
+      const blockers = getBlockingChecks();
+      const saveButton = document.getElementById('saveSchedule');
+      saveButton.disabled = blockers.length > 0;
+      saveButton.title = blockers.length ? blockers.join(' ') : 'Save schedule';
+    }
+
+    function renderPayload() {
+      const payload = {
+        schedule_model: 'rule_based_hourly_preview',
+        timezone: baseCampaign.timezone,
+        overlap_resolution: overlapResolution,
+        pause_conflict_resolution: pauseConflictResolution,
+        base_campaign_settings: {
+          weekly_budget_eur: baseCampaign.weeklyBudget,
+          base_bid_eur: baseCampaign.bid,
+          editable_in_this_view: false
+        },
+        rules: rules.map((rule, index) => ({
+          priority: index + 1,
+          name: rule.name,
+          source_suggestion_id: rule.sourceSuggestionId || null,
+          pause_campaign: !!rule.pause,
+          large_increase_confirmed: !!rule.largeIncreaseConfirmed,
+          windows: rule.windows.map(w => ({
+            day: w.day,
+            start_time: hourLabel(w.start),
+            end_time: w.end === 24 ? '23:59' : hourLabel(w.end),
+            all_day: !!w.allDay
+          })),
+          budget_change: {
+            signed_percent: signedPct(rule.budget),
+            ignored_when_pause_campaign_is_true: !!rule.pause
+          },
+          bid_change: {
+            signed_percent: signedPct(rule.bid),
+            ignored_when_pause_campaign_is_true: !!rule.pause
+          },
+          reason: rule.reason || null
+        })),
+        validation: {
+          open_checks: getBlockingChecks(),
+          overlaps: detectOverlaps().map(pair => ({ rule_a: pair.a, rule_b: pair.b, pause_conflict: pair.pauseConflict })),
+          requires_confirmation: extremeRules().map(rule => rule.name),
+          disregarded_suggestions: [...disregardedSuggestionIds]
+        }
+      };
+      document.getElementById('payload').textContent = JSON.stringify(payload, null, 2);
+    }
+
+    function render() {
+      renderSuggestions();
+      renderRuleList();
+      renderGrid();
+      renderImpact();
+      renderWarnings();
+      renderPayload();
+    }
+
+    function setupDayChips() {
+      const dayChips = document.getElementById('dayChips');
+      dayChips.innerHTML = '';
+      days.forEach(day => {
+        const chip = document.createElement('button');
+        chip.className = 'chip';
+        chip.type = 'button';
+        chip.dataset.key = day.key;
+        chip.textContent = day.label;
+        chip.addEventListener('click', () => {
+          formWindows[day.key].selected = !formWindows[day.key].selected;
+          renderDayTimeRows();
+          updateFormWarning();
+        });
+        dayChips.appendChild(chip);
+      });
+    }
+
+    function renderDayTimeRows() {
+      document.querySelectorAll('#dayChips .chip').forEach(chip => {
+        chip.classList.toggle('active', formWindows[chip.dataset.key].selected);
+      });
+
+      const rows = document.getElementById('dayTimeRows');
+      rows.innerHTML = '';
+      const selected = days.filter(day => formWindows[day.key].selected);
+      if (!selected.length) {
+        rows.innerHTML = '<div class="insight-card"><p>Select one or more weekdays above.</p></div>';
+        return;
+      }
+
+      selected.forEach(day => {
+        const row = document.createElement('div');
+        row.className = 'day-time-row';
+        row.innerHTML = `
+          <strong>${day.full}</strong>
+          <select data-start="${day.key}" aria-label="Start time for ${day.full}"></select>
+          <select data-end="${day.key}" aria-label="End time for ${day.full}"></select>
+          <button class="btn small" type="button" data-all-day="${day.key}">All day</button>
+        `;
+        rows.appendChild(row);
+
+        const startSelect = row.querySelector(`[data-start="${day.key}"]`);
+        const endSelect = row.querySelector(`[data-end="${day.key}"]`);
+        fillStartOptions(startSelect);
+        fillEndOptions(endSelect);
+        startSelect.value = String(formWindows[day.key].start);
+        endSelect.value = String(formWindows[day.key].end);
+
+        startSelect.addEventListener('change', () => {
+          formWindows[day.key].start = Number(startSelect.value);
+          formWindows[day.key].allDay = false;
+          if (formWindows[day.key].end <= formWindows[day.key].start) {
+            formWindows[day.key].end = Math.min(24, formWindows[day.key].start + 1);
+          }
+          renderDayTimeRows();
+          updateFormWarning();
+        });
+
+        endSelect.addEventListener('change', () => {
+          formWindows[day.key].end = Number(endSelect.value);
+          formWindows[day.key].allDay = formWindows[day.key].start === 0 && formWindows[day.key].end === 24;
+          if (formWindows[day.key].end <= formWindows[day.key].start) {
+            formWindows[day.key].start = Math.max(0, formWindows[day.key].end - 1);
+          }
+          renderDayTimeRows();
+          updateFormWarning();
+        });
+
+        row.querySelector(`[data-all-day="${day.key}"]`).addEventListener('click', () => {
+          formWindows[day.key].start = 0;
+          formWindows[day.key].end = 24;
+          formWindows[day.key].allDay = true;
+          renderDayTimeRows();
+          updateFormWarning();
+        });
+      });
+    }
+
+    function fillStartOptions(select) {
+      select.innerHTML = '';
+      for (let h = 0; h < 24; h++) {
+        const option = document.createElement('option');
+        option.value = String(h);
+        option.textContent = hourLabel(h);
+        select.appendChild(option);
+      }
+    }
+
+    function fillEndOptions(select) {
+      select.innerHTML = '';
+      for (let h = 1; h < 24; h++) {
+        const option = document.createElement('option');
+        option.value = String(h);
+        option.textContent = hourLabel(h);
+        select.appendChild(option);
+      }
+      const last = document.createElement('option');
+      last.value = '24';
+      last.textContent = '23:59';
+      select.appendChild(last);
+    }
+
+    function syncPauseState() {
+      const group = document.getElementById('changeControlGroup');
+      const button = document.getElementById('pauseCampaign');
+      const note = document.getElementById('pauseNote');
+      group.classList.toggle('paused', formPaused);
+      button.textContent = formPaused ? 'Unpause' : 'Pause campaign';
+      button.classList.toggle('danger', !formPaused);
+      button.classList.toggle('success', formPaused);
+      note.textContent = formPaused
+        ? 'Campaign is paused for the selected hours. Budget and bid changes are ignored until unpaused.'
+        : 'When paused, budget and bid changes are ignored for the selected hours.';
+    }
+
+    function openDrawerForNew(prefill = null) {
+      editingRuleId = null;
+      editingSourceSuggestionId = prefill?.sourceSuggestionId || null;
+      document.getElementById('drawerTitle').textContent = 'Add scheduling rule';
+      applyPrefillToForm(prefill || {
+        name: '',
+        windows: [],
+        budget: { direction: 'increase', pct: 0 },
+        bid: { direction: 'increase', pct: 0 },
+        pause: false,
+        largeIncreaseConfirmed: false,
+        reason: '',
+        sourceSuggestionId: null
+      });
+      toggleDrawer(true);
+    }
+
+    function openDrawerForRule(rule) {
+      editingRuleId = rule.id;
+      editingSourceSuggestionId = rule.sourceSuggestionId || null;
+      document.getElementById('drawerTitle').textContent = 'Edit scheduling rule';
+      applyPrefillToForm(rule);
+      toggleDrawer(true);
+    }
+
+    function applyPrefillToForm(rule) {
+      formWindows = emptyFormWindows();
+      document.getElementById('ruleName').value = rule.name || '';
+      (rule.windows || []).forEach(w => {
+        if (!formWindows[w.day]) return;
+        formWindows[w.day] = {
+          selected: true,
+          start: Number(w.start ?? 9),
+          end: Number(w.end ?? 17),
+          allDay: !!w.allDay
+        };
+      });
+      formPaused = !!rule.pause;
+      setPctInput('budgetPct', signedPct(rule.budget));
+      setPctInput('bidPct', signedPct(rule.bid));
+      document.getElementById('reason').value = rule.reason || '';
+      syncPauseState();
+      renderDayTimeRows();
+      updateFormWarning();
+    }
+
+    function toggleDrawer(isOpen) {
+      document.getElementById('drawer').classList.toggle('open', isOpen);
+      document.getElementById('drawerBackdrop').classList.toggle('open', isOpen);
+      document.getElementById('drawer').setAttribute('aria-hidden', String(!isOpen));
+    }
+
+    function getFormRule(isCandidate = false) {
+      const windows = days
+        .filter(day => formWindows[day.key].selected)
+        .map(day => ({
+          day: day.key,
+          start: Number(formWindows[day.key].start),
+          end: Number(formWindows[day.key].end),
+          allDay: !!formWindows[day.key].allDay
+        }));
+
+      return {
+        id: editingRuleId || (isCandidate ? 'candidate' : cryptoId()),
+        name: document.getElementById('ruleName').value.trim() || 'Untitled rule',
+        windows,
+        budget: changeFromSigned(parsePctInput('budgetPct')),
+        bid: changeFromSigned(parsePctInput('bidPct')),
+        pause: formPaused,
+        largeIncreaseConfirmed: false,
+        reason: document.getElementById('reason').value.trim(),
+        sourceSuggestionId: editingSourceSuggestionId
+      };
+    }
+
+    function updateFormWarning() {
+      const candidate = getFormRule(true);
+      const overlaps = detectOverlaps(candidate);
+      const pauseConflicts = detectPauseConflicts(candidate);
+      const messages = [];
+      if (!candidate.windows.length) messages.push('Select at least one weekday.');
+      if (candidate.windows.some(w => w.end <= w.start)) messages.push('End time must be after start time.');
+      if (ruleRequiresConfirmation(candidate)) messages.push('Increase above 100% for budget and/or bid requires confirmation after clicking Save rule.');
+      if (!candidate.pause && !ruleHasActiveChange(candidate)) messages.push('Set a budget/bid change or pause the campaign.');
+      if (overlaps.length) messages.push('Overlap detected with an existing rule. Use combine overlaps or resolve by priority in the Review panel.');
+      if (pauseConflicts.length) messages.push('Pause overlaps with budget/bid changes. The schedule cannot be saved until a pause conflict decision is selected.');
+      const box = document.getElementById('formWarning');
+      box.classList.toggle('show', !!messages.length);
+      box.innerHTML = messages.map(m => `• ${escapeHtml(m)}`).join('<br>');
+    }
+
+    function saveFormRule() {
+      normalizePctInputs();
+      const existingConfirmed = editingRuleId ? !!rules.find(r => r.id === editingRuleId)?.largeIncreaseConfirmed : false;
+      const rule = getFormRule(false);
+      if (!rule.windows.length) {
+        updateFormWarning();
+        showToast('Please select at least one weekday.');
+        return;
+      }
+      if (rule.windows.some(w => w.end <= w.start)) {
+        updateFormWarning();
+        showToast('Please check the time window.');
+        return;
+      }
+      if (!ruleHasActiveChange(rule)) {
+        updateFormWarning();
+        showToast('Set a budget/bid change or pause the campaign.');
+        return;
+      }
+      if (ruleRequiresConfirmation(rule) && !existingConfirmed) {
+        pendingRuleForConfirmation = rule;
+        showConfirmationModal(rule);
+        return;
+      }
+      rule.largeIncreaseConfirmed = ruleRequiresConfirmation(rule) ? existingConfirmed : false;
+      persistRule(rule);
+    }
+
+    function persistRule(rule) {
+      if (editingRuleId) {
+        rules = rules.map(r => r.id === editingRuleId ? rule : r);
+        selectedRuleId = rule.id;
+        showToast('Rule updated. Preview refreshed.');
+      } else {
+        rules.push(rule);
+        selectedRuleId = rule.id;
+        showToast('Rule added. Preview refreshed.');
+      }
+      pendingRuleForConfirmation = null;
+      toggleConfirmationModal(false);
+      toggleDrawer(false);
+      render();
+    }
+
+    function showConfirmationModal(rule) {
+      document.getElementById('confirmDetails').innerHTML = confirmationLines(rule).map(line => `<div class="confirm-item">${escapeHtml(line)}</div>`).join('');
+      toggleConfirmationModal(true);
+    }
+
+    function toggleConfirmationModal(isOpen) {
+      document.getElementById('confirmBackdrop').classList.toggle('open', isOpen);
+      document.getElementById('confirmModal').classList.toggle('open', isOpen);
+      document.getElementById('confirmModal').setAttribute('aria-hidden', String(!isOpen));
+    }
+
+    function cloneRule(rule) {
+      return {
+        id: cryptoId(),
+        name: rule.name,
+        windows: rule.windows.map(w => ({ ...w })),
+        budget: { ...rule.budget },
+        bid: { ...rule.bid },
+        pause: !!rule.pause,
+        largeIncreaseConfirmed: false,
+        reason: rule.reason,
+        sourceSuggestionId: rule.sourceSuggestionId || rule.id || null
+      };
+    }
+
+    function removeVisibleSuggestion(id) {
+      visibleSuggestionIds = visibleSuggestionIds.filter(suggestionId => suggestionId !== id);
+    }
+
+    function applySuggestion(id) {
+      const suggestion = findSuggestion(id);
+      if (!suggestion) return;
+      const rule = cloneRule(suggestion);
+      rule.sourceSuggestionId = suggestion.id;
+      rules.push(rule);
+      selectedRuleId = rule.id;
+      removeVisibleSuggestion(id);
+      render();
+      showToast('Suggested rule applied.');
+    }
+
+    function adjustSuggestion(id) {
+      const suggestion = findSuggestion(id);
+      if (!suggestion) return;
+      const prefill = cloneRule(suggestion);
+      prefill.sourceSuggestionId = suggestion.id;
+      removeVisibleSuggestion(id);
+      renderSuggestions();
+      openDrawerForNew(prefill);
+      showToast('Suggestion moved into the rule builder.');
+    }
+
+    function disregardSuggestion(id) {
+      disregardedSuggestionIds.add(id);
+      removeVisibleSuggestion(id);
+      render();
+      showToast('Suggestion disregarded and will not be regenerated.');
+    }
+
+    function generateSuggestions() {
+      const eligible = eligibleSuggestionIds().filter(id => !visibleSuggestionIds.includes(id));
+      if (!eligible.length) {
+        showToast('No further eligible suggestions available.');
+        return;
+      }
+      visibleSuggestionIds = [...visibleSuggestionIds, ...eligible.slice(0, 3)];
+      renderSuggestions();
+      renderPayload();
+      showToast('Suggestions generated from historic data.');
+    }
+
+    function deleteRule(id) {
+      const rule = rules.find(r => r.id === id);
+      rules = rules.filter(r => r.id !== id);
+      if (selectedRuleId === id) selectedRuleId = null;
+      showToast(`Deleted “${rule?.name || 'rule'}”. Generate can suggest it again if it came from historic data.`);
+      render();
+    }
+
+    function reorderRules(fromId, toId) {
+      if (!fromId || !toId || fromId === toId) return;
+      const fromIndex = rules.findIndex(r => r.id === fromId);
+      const toIndex = rules.findIndex(r => r.id === toId);
+      if (fromIndex < 0 || toIndex < 0) return;
+      const [moved] = rules.splice(fromIndex, 1);
+      rules.splice(toIndex, 0, moved);
+      selectedRuleId = moved.id;
+      render();
+      showToast('Rule priority updated.');
+    }
+
+    function setOverlapResolution(mode) {
+      overlapResolution = mode;
+      render();
+      showToast(mode === 'priority' ? 'Overlaps will resolve by rule priority.' : 'Overlapping rules will be combined.');
+    }
+
+    function setPauseConflictResolution(mode) {
+      pauseConflictResolution = mode;
+      render();
+      showToast(mode === 'pause' ? 'Pause campaign wins in pause overlaps.' : 'Budget/bid changes win in pause overlaps.');
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(window.toastTimer);
+      window.toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
+    }
+
+    setupDayChips();
+    syncPauseState();
+
+    document.getElementById('openDrawer').addEventListener('click', () => openDrawerForNew());
+    document.getElementById('closeDrawer').addEventListener('click', () => toggleDrawer(false));
+    document.getElementById('cancelRule').addEventListener('click', () => toggleDrawer(false));
+    document.getElementById('drawerBackdrop').addEventListener('click', () => toggleDrawer(false));
+    document.getElementById('saveRule').addEventListener('click', saveFormRule);
+    document.getElementById('saveSchedule').addEventListener('click', () => {
+      const blockers = getBlockingChecks();
+      if (blockers.length) {
+        showToast('Resolve open warnings/checks before saving.');
+        return;
+      }
+      showToast('Schedule saved. In production this would create an auditable change record.');
+    });
+    document.getElementById('generateSuggestions').addEventListener('click', generateSuggestions);
+    document.getElementById('togglePayload').addEventListener('click', () => {
+      const payload = document.getElementById('payload');
+      payload.classList.toggle('open');
+      document.getElementById('togglePayload').textContent = payload.classList.contains('open') ? 'Hide rule payload' : 'Show rule payload';
+    });
+
+    document.getElementById('budgetMinusStep').addEventListener('click', () => stepPctInput('budgetPct', -5));
+    document.getElementById('budgetPlusStep').addEventListener('click', () => stepPctInput('budgetPct', 5));
+    document.getElementById('bidMinusStep').addEventListener('click', () => stepPctInput('bidPct', -5));
+    document.getElementById('bidPlusStep').addEventListener('click', () => stepPctInput('bidPct', 5));
+    document.getElementById('pauseCampaign').addEventListener('click', () => {
+      formPaused = !formPaused;
+      syncPauseState();
+      updateFormWarning();
+    });
+
+    document.getElementById('cancelConfirm').addEventListener('click', () => {
+      pendingRuleForConfirmation = null;
+      toggleConfirmationModal(false);
+    });
+    document.getElementById('confirmBackdrop').addEventListener('click', () => {
+      pendingRuleForConfirmation = null;
+      toggleConfirmationModal(false);
+    });
+    document.getElementById('confirmSave').addEventListener('click', () => {
+      if (pendingRuleForConfirmation) {
+        pendingRuleForConfirmation.largeIncreaseConfirmed = true;
+        persistRule(pendingRuleForConfirmation);
+      }
+    });
+
+    ['budgetPct', 'bidPct'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updateFormWarning);
+      document.getElementById(id).addEventListener('blur', () => {
+        setPctInput(id, parsePctInput(id));
+        updateFormWarning();
+      });
+      document.getElementById(id).addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowUp') { e.preventDefault(); stepPctInput(id, 5); }
+        if (e.key === 'ArrowDown') { e.preventDefault(); stepPctInput(id, -5); }
+      });
+    });
+
+    ['reason', 'ruleName'].forEach(id => {
+      document.getElementById(id).addEventListener('input', updateFormWarning);
+      document.getElementById(id).addEventListener('change', updateFormWarning);
+    });
+
+    render();
+  </script>
+</body>
+</html>
